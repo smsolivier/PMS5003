@@ -4,7 +4,7 @@ This library wraps a `HardwareSerial` or `SoftwareSerial` stream corresponding t
 # Fix for unreliable sensor readings 
 Across many Arduino forums there appears to be trouble with reliably reading the PMS5003's output when not continuously reading the sensor's output. This issue is caused by the serial buffer overflowing and overwriting data. The easiest fix is to make sure to continuously empty the serial buffer so that an overflow never occurs. However, for low power applications it is necessary to power down the sensor between data measurements. Additionally, Plantower recommends waiting 30 seconds after returning power to the PMS5003 before taking measurements to give time for the fan to turn on. Given that the PMS5003 is outputting at 9600 BAUD = 9600 bits per second, the 64 byte buffer will fill in 53 milliseconds. Thus, operating the sensor for more than 53 milliseconds without reading from the serial buffer will cause an overflow. Reliability was increased (at least for my Arduino Nano) by 
 * draining the serial buffer completely before taking a measurement. This is achieved by running 
-``` 
+```cpp
 for (int i=0; i<Serial.available(); i++) Serial.read(); 
 ``` 
 before each measurement. This clears any corrupted data from the buffer. 
@@ -13,7 +13,7 @@ before each measurement. This clears any corrupted data from the buffer.
 The combination of these two methods led to very reliable measurements. Unfortunately, the buffer size in `SoftwareSerial` and `HardwareSerial` are not configurable from an external library. The macro corresponding to the receive buffer size must be altered in the core Arduino library files. 
 
 # `SoftwareSerial` Example 
-``` 
+```cpp
 #include <SoftwareSerial.h> 
 #include "PMS5003.hpp" 
 
