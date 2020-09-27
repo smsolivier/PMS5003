@@ -2,33 +2,41 @@
 
 #include <Arduino.h>
 
+// wraps a serial stream such as HardwareSerial or SoftwareSerial corresponding to a PMS5003 sensor 
+// facilitates toggling operating modes and reading the data 
+// it is recommended to increase the serial buffer size for more reliable reading 
+// the default buffer size is set to 64 bytes but it appears to only actually be able to store 63 bytes
+// I think the circular buffer implemented in SoftwareSerial may be buggy when the 
+// buffer overflows (from not reading the PMS5003 often enough) 
+// increasing the buffer size to 65 bytes and draining the buffer before reading a 
+// message makes reading the serial stream 100% reliable (for my arduino nano at least) 
 class PMS5003 {
 public:
   PMS5003(Stream &stream) : _serial(stream) { }
   struct Data {
-	uint16_t framelen; 
-	uint16_t pm_st[3]; 
-	uint16_t pm_en[3]; 
-	uint16_t hist[6]; 
-	uint16_t unused; 
-	uint16_t checksum; 
-	bool valid = false; 
-	byte mask = 0; 
+	uint16_t framelen; // size of data in bytes 
+	uint16_t pm_st[3]; // "standard" particulate matter in micro grams / liter for 1.0, 2.5, and 10 micron diameters 
+	uint16_t pm_en[3]; // "environmental" particular matter in micro grams / liter for 1.0, 2.5, and 10 micron diameters
+	uint16_t hist[6]; // number of particles detected in 0.1 L beyond 0.3 um, 0.5 um, 1.0 um, 2.5 um, 5.0 um, and 10 um 
+	uint16_t unused; // blank 
+	uint16_t checksum; // bitwise sum to check against 
+	bool valid = false; // this data was read correctly (matches starting bytes, length, checksum)
+	byte mask = 0; // stores info corresonding to ValidMasks (useful for debugging which part of the message was wrong) 
   }; 
   enum ValidMasks {
-	HAVE_START1 = 1, 
-	HAVE_START2 = 2, 
-	HAVE_LENGTH = 4, 
-	HAVE_CHECKSUM = 8
+	HAVE_START1 = 1, // message's first byte is 0x42 
+	HAVE_START2 = 2, // message's second byte is 0x4d 
+	HAVE_LENGTH = 4, // message is 32 bytes 
+	HAVE_CHECKSUM = 8 // message passes the checksum test 
   }; 
   enum OperatingMode {
-	ACTIVE,
-	PASSIVE
+	ACTIVE, // PMS5003 continuously streams data 
+	PASSIVE // PMS5003 is on but only sends data if requested 
   }; 
   enum Status {
-	ASLEEP,
-	WOKE,
-	REQUESTING
+	ASLEEP, // PMS5003 is asleep 
+	WOKE, // PMS5003 is active but not sending data if in passive mode 
+	REQUESTING // PMS5003 is active and sending data (if in passive mode) 
   }; 
   // turn on/off draining the serial buffer before taking a measurement 
   // improves reliability when not taking measurements continuously 
