@@ -40,7 +40,7 @@ void loop() {
 	// data.valid == true means the data was correctly read 
 	// data.mask holds debugging info and will indicate where the read failed
 	// data.mask == 15 indicates 
-		// the first byte of the message matches the PMS5003's start of message indicating byte 
+		// the first byte of the message is 0x42 (the PMS5003 start of message byte)
 		// the second byte of the message matches the PMS5003's second indicating byte 
 		// the message is 32 bytes as expected 
 		// the message passes the checksum test 
