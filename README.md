@@ -25,40 +25,40 @@ PMS5003 pms(pms_serial);
 PMS5003::Data data; 
 
 void setup() {
-	Serial.begin(9600); 
-	pms_serial.begin(9600); 
-	Serial.print("starting PMS5003 with SoftwareSerial buffer size = "); 
-	Serial.println(_SS_MAX_RX_BUFF); 
+  Serial.begin(9600); 
+  pms_serial.begin(9600); 
+  Serial.print("starting PMS5003 with SoftwareSerial buffer size = "); 
+  Serial.println(_SS_MAX_RX_BUFF); 
 
-	pms.SetPassive(); // only send data when requested, helps reduce buffer overflow 
-	pms.SetDrainBuffer(true); // drain the serial buffer before reading a measurement 
+  pms.SetPassive(); // only send data when requested, helps reduce buffer overflow 
+  pms.SetDrainBuffer(true); // drain the serial buffer before reading a measurement 
 
-	delay(1000); // give the fan time to startup 
+  delay(1000); // give the fan time to startup 
 }
 
 void loop() {
-	// wake the PMS5003 
-	// wait 30 seconds for the fan to turn on 
-	// request the data from the sensor 
-	// read the message and store the output in the data struct 
-	// sleep the sensor 
-	// tries holds the number of read attempts. 
-	// data.valid == true means the data was correctly read 
-	// data.mask holds debugging info and will indicate where the read failed
-	// data.mask == 15 indicates 
-		// the first byte of the message is 0x42 (the PMS5003 start of message byte)
-		// the second byte of the message matches the PMS5003's second indicating byte 
-		// the message is 32 bytes as expected 
-		// the message passes the checksum test 
-	size_t tries = pms.ForcedRead(data, 30000); 
+  // wake the PMS5003 
+  // wait 30 seconds for the fan to turn on 
+  // request the data from the sensor 
+  // read the message and store the output in the data struct 
+  // sleep the sensor 
+  // tries holds the number of read attempts. 
+  // data.valid == true means the data was correctly read 
+  // data.mask holds debugging info and will indicate where the read failed
+  // data.mask == 15 indicates 
+    // the first byte of the message is 0x42 (the PMS5003 start of message byte)
+    // the second byte of the message matches the PMS5003's second indicating byte 
+    // the message is 32 bytes as expected 
+    // the message passes the checksum test 
+  size_t tries = pms.ForcedRead(data, 30000); 
 
-	// print the "standard" PM1.0, PM2.5, and PM10.0 values read from the sensor 
-	String s = String("1.0: ") + String(data.pms.pm_st[0]) + String(", 2.5: ") 
-		+ String(data.pms.pm_st[1]) + String(", 10.0: ") + String(data.pms.pm_st[2]); 
-	if (!data.valid) {
-		Serial.print("data invalid. validity mask = "); 
-		Serial.println(data.mask); 
-	} else Serial.println(s); 
+  // print the "standard" PM1.0, PM2.5, and PM10.0 values read from the sensor 
+  String s = String("1.0: ") + String(data.pms.pm_st[0]) + String(", 2.5: ") 
+    + String(data.pms.pm_st[1]) + String(", 10.0: ") + String(data.pms.pm_st[2]); 
+  if (!data.valid) {
+    Serial.print("data invalid. validity mask = "); 
+    Serial.println(data.mask); 
+  } else Serial.println(s); 
 
-	delay(60000); // wait a minute before taking the next measurement 
+  delay(60000); // wait a minute before taking the next measurement 
 }
