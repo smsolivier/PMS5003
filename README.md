@@ -1,5 +1,5 @@
 # PMS5003 
-The PMS5003 is the air quality sensor used in a PurpleAir air monitoring module. It measures the amount of dust in the air and the data it collects can be used to compute the air quality index (AQI) used to assess how safe the air is to breathe. The primary use case of this library is the creation of a battery powered AQI sensor. It is thus important to be able to power the sensor down to between readings to increase battery life. 
+The PMS5003 is the air quality sensor used by PurpleAir in their air quality monitors. It measures the amount of dust in the air and the data it collects can be used to compute the air quality index (AQI) used to assess how safe the air is to breathe. This library was designed in the process of making a battery powered AQI sensor. It is then crucial to power the sensor down in between sensors to increase battery life. 
 
 This library wraps a `HardwareSerial` or `SoftwareSerial` stream corresponding to a PMS5003's TX and RX pins. The library facilitates changing the sensor's operating modes (active vs. passive), waking/sleeping the sensor, and reading the data from the sensor. This library was written since other PMS5003 libraries lacked reliability when `delay`'s were used. 
 
