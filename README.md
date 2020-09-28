@@ -11,7 +11,7 @@ for (int i=0; i<Serial.available(); i++) Serial.read();
 ``` 
 before each measurement. This clears any corrupted data from the buffer. Note that `Serial.flush()` only clears the *output* buffer not the input buffer. 
 
-2. increase the default serial buffer size by one byte. I noticed that despite the buffer being nominally 64 bytes, `Serial.available()` had a maximum value of 63 bytes (using both `HardwareSerial` and `SoftwareSerial`). This means that a full buffer can hold one uncorrupted PMS5003 32 byte message and one corrupted PMS5003 message with one byte overwritten by the uncorrupted message. By increasing the buffer size to 65 bytes in `SoftwareSerial.h`/`HardwareSerial.h`, `Serial.available()` now returns 64 bytes when the buffer is full. 
+2. increase the default serial buffer size by one byte. I noticed that despite the buffer being nominally 64 bytes, `Serial.available()` had a maximum value of 63 bytes (using both `HardwareSerial` and `SoftwareSerial`). This means that a full buffer can hold one uncorrupted PMS5003 32 byte message and one corrupted PMS5003 message with one byte overwritten by the uncorrupted message. By increasing the buffer size to 65 bytes in `SoftwareSerial.h`/`HardwareSerial.h`, `Serial.available()` now returns 64 bytes when the buffer is full. This means two full PMS5003 32 byte messages can be stored in the buffer. 
 
 The combination of these two methods led to very reliable measurements. Unfortunately, the buffer size in `SoftwareSerial` and `HardwareSerial` are not configurable from an external library. The macro corresponding to the receive buffer size must be altered in the core Arduino library files (on Linux `/usr/share/arduino/hardware`). 
 
