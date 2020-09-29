@@ -44,7 +44,7 @@ size_t PMS5003::BlockingRead(Data &data, size_t timeout) {
 	// do nothing if asleep 
 	if (_status == ASLEEP) {
 		data.valid = false; 
-		data.mask = 0; 
+		data.mask = 16; 
 		return 0; 
 	}
 	// request data if necessary 
