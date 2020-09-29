@@ -8,7 +8,7 @@ void PMS5003::Read(Data &data) {
 	if (_drain) for (int i=0; i<_serial.available(); i++) _serial.read(); 
 
 	// search for start character 
-	size_t prev = millis(); 
+	unsigned long prev = millis(); 
 	while (millis() - prev < _seek_timeout) {
 		if (_serial.peek() == 0x42) break; 
 		_serial.read(); 
@@ -50,7 +50,7 @@ size_t PMS5003::BlockingRead(Data &data, size_t timeout) {
 	// request data if necessary 
 	if (_mode == PASSIVE and _status != REQUESTING) RequestData();
 
-	size_t prev = millis(); 
+	unsigned long prev = millis(); 
 	size_t tries = 0; 
 	while (millis() - prev < timeout) { // loop for at most timeout milliseconds 
 		Read(data); // attempt a read 
