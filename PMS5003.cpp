@@ -40,11 +40,11 @@ void PMS5003::Read(Data &data) {
 	else data.valid = false; // not(15) => some error occurred 
 }
 
-size_t PMS5003::BlockingRead(Data &data, size_t timeout) {
+size_t PMS5003::BlockingRead(Data &data, unsigned long timeout) {
 	// do nothing if asleep 
 	if (_status == ASLEEP) {
 		data.valid = false; 
-		data.mask = 16; 
+		data.mask = SENSOR_ASLEEP_ERR; 
 		return 0; 
 	}
 	// request data if necessary 
@@ -57,10 +57,14 @@ size_t PMS5003::BlockingRead(Data &data, size_t timeout) {
 		tries++; 
 		if (data.valid) break; // exit if valid data 
 	}
+	if (tries==0) {
+		data.valid = false; 
+		data.mask = SENSOR_TIMEOUT_ERR; 
+	}
 	return tries; 
 }
 
-size_t PMS5003::ForcedRead(Data &data, size_t startup_delay, size_t timeout) {
+size_t PMS5003::ForcedRead(Data &data, unsigned long startup_delay, unsigned long timeout) {
 	// wake and wait if asleep 
 	if (_status == ASLEEP) {
 		Wake(); 
