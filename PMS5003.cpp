@@ -37,13 +37,18 @@ void PMS5003::Read(Data &data) {
 	}
 	if (_idata.checksum == sum) data.mask |= HAVE_CHECKSUM; 
 
+	// convert to nicer data structure 
 	ExtractData(_idata, data); 
+
+	// set valid mask if have all the requirements for a good measurement 
+	data.valid = data.mask & HAVE_VALID; 
 }
 
-size_t PMS5003::BlockingRead(Data &data, unsigned long timeout) {
+size_t PMS5003::BlockingRead(Data &data) {
 	// do nothing if asleep 
 	if (_status == ASLEEP) {
-		data.mask = SENSOR_ASLEEP_ERR; 
+		data.mask = 0; 
+		data.valid = false; 
 		return 0; 
 	}
 	// request data if necessary 
@@ -51,39 +56,41 @@ size_t PMS5003::BlockingRead(Data &data, unsigned long timeout) {
 
 	unsigned long prev = millis(); 
 	size_t tries = 0; 
-	while (millis() - prev < timeout) { // loop for at most timeout milliseconds 
+	while (millis() - prev < _blocking_timeout) { // loop for at most timeout milliseconds 
 		Read(data); // attempt a read 
 		tries++; 
-		if (data.mask & HAVE_VALID) break; // exit if valid data 
-	}
-	if (tries==0) {
-		data.mask = SENSOR_TIMEOUT_ERR; 
+		if (data.valid) break; // exit if valid data 
 	}
 	return tries; 
 }
 
-void PMS5003::AveragedRead(Data &data, unsigned long avg_time, unsigned long timeout) {
-	if (_status == ASLEEP) {
-		data.mask = SENSOR_ASLEEP_ERR; 
-		return; 
-	}
-	if (_mode == PASSIVE and _status != REQUESTING) RequestData(); 
+size_t PMS5003::ForcedRead(Data &data) {
+	byte prev_status = _status; 
+	if (_status == ASLEEP) Wake(); // wake and wait if asleep 
+	size_t tries = BlockingRead(data);  
+	if (prev_status == ASLEEP) Sleep(); // return to sleep if started asleep 
+	return tries; 
+}
 
+size_t PMS5003::AveragedRead(Data &data, unsigned long avg_time) {
+	byte prev_status = _status; 
+	if (_status == ASLEEP) Wake(); // wake and wait if asleep 
+
+	size_t max_tries = 0; 
+	size_t N = 0; // number of calls to read 
+	Data tmp_data; 
+	ZeroDataStructure(data); 
 	unsigned long prev = millis(); 
 	while (millis() - prev < avg_time) {
-		BlockingRead(data, timeout); 
+		size_t tries = BlockingRead(tmp_data); 
+		if (tries > max_tries) max_tries = tries; 
+		AddDataStructures(data, tmp_data); 
+		N++; 
 	}
-}
+	DivideDataStructure(data, N); 
 
-size_t PMS5003::ForcedRead(Data &data, unsigned long startup_delay, unsigned long timeout) {
-	// wake and wait if asleep 
-	if (_status == ASLEEP) {
-		Wake(); 
-		delay(startup_delay); // wait for fan to startup 
-	}
-	size_t tries = BlockingRead(data, timeout);  
-	Sleep(); 
-	return tries; 
+	if (prev_status == ASLEEP) Sleep(); // return to sleep if started asleep 
+	return max_tries; 
 }
 
 // see https://usermanual.wiki/Pdf/plantowerpms5003manualannotated.626592918/html for commands 
@@ -97,6 +104,7 @@ void PMS5003::Wake() {
 	uint8_t command[] = { 0x42, 0x4D, 0xE4, 0x00, 0x01, 0x01, 0x74 }; 
 	_serial.write(command, sizeof(command)); 
 	_status = WOKE; 
+	delay(_startup_delay); 
 }
 
 void PMS5003::SetPassive() {
@@ -119,4 +127,38 @@ void PMS5003::RequestData() {
 
 void PMS5003::ExtractData(const SensorOutput &idata, Data &data) {
 	memcpy(&data, ((byte*)&idata) + 2, 24); // skip first 2 bytes and copy 24 bytes 
+}
+
+void PMS5003::ZeroDataStructure(Data &data) {
+	for (int i=0; i<3; i++) {
+		data.pm_st[i] = 0; 
+		data.pm_en[i] = 0; 
+	}
+	for (int i=0; i<6; i++) {
+		data.hist[i] = 0; 
+	}
+	data.mask = HAVE_VALID; 
+	data.valid = true; 
+}
+
+void PMS5003::AddDataStructures(Data &d1, Data &d2) {
+	for (int i=0; i<3; i++) {
+		d1.pm_st[i] += d2.pm_st[i]; 
+		d1.pm_en[i] += d2.pm_en[i]; 
+	}
+	for (int i=0; i<6; i++) {
+		d1.hist[i] += d2.hist[i]; 
+	}
+	d1.mask = min(d1.mask, d2.mask); 
+	d1.valid = d1.valid and d2.valid; 
+}
+
+void PMS5003::DivideDataStructure(Data &data, unsigned long N) {
+	for (int i=0; i<3; i++) {
+		data.pm_st[i] = (uint16_t)(roundf((float)data.pm_st[i]/N)); 
+		data.pm_en[i] = (uint16_t)(roundf((float)data.pm_en[i]/N)); 
+	}
+	for (int i=0; i<6; i++) {
+		data.hist[i] = (uint16_t)(roundf((float)data.hist[i]/N)); 
+	}
 }

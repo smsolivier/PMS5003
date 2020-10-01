@@ -12,22 +12,24 @@
 // message makes reading the serial stream 100% reliable (for my arduino nano at least) 
 class PMS5003 {
 public:
+	// constructor: provide a Stream that has RX and TX from PMS5003 
 	PMS5003(Stream &stream) : _serial(stream) { }
+	// data structure holding numeric output from sensor 
 	struct Data {
 		uint16_t pm_st[3]; // "standard" particulate matter in micro grams / liter for 1.0, 2.5, and 10 micron diameters 
 		uint16_t pm_en[3]; // "environmental" particular matter in micro grams / liter for 1.0, 2.5, and 10 micron diameters
 		uint16_t hist[6]; // number of particles detected in 0.1 L beyond 0.3 um, 0.5 um, 1.0 um, 2.5 um, 5.0 um, and 10 um 
 		byte mask = 0; // stores info corresonding to ValidMasks (useful for debugging which part of the message was wrong) 
-		size_t tries; // number of attempts to read 
+		bool valid = false; 
 	}; 
+	// bitwise comparison enum 
+	// used to create a error code for Data::mask 
 	enum ValidMasks {
 		HAVE_START1 = 1, // message's first byte is 0x42 
 		HAVE_START2 = 2, // message's second byte is 0x4d 
 		HAVE_LENGTH = 4, // message is 32 bytes 
 		HAVE_CHECKSUM = 8, // message passes the checksum test 
 		HAVE_VALID = 15, // message has correct starting bytes, length, and checksum passed 
-		SENSOR_ASLEEP_ERR = 16, // message implies read was called while the sensor was not able to give data 
-		SENSOR_TIMEOUT_ERR = 17 // a timeout in BlockingRead or ForcedRead occurred 
 	}; 
 	enum OperatingMode {
 		ACTIVE, // PMS5003 continuously streams data 
@@ -43,14 +45,22 @@ public:
 	void SetDrainBuffer(bool drain=true) { _drain = drain; }
 	// how long to search for the start character 
 	void SetSeekTimeout(unsigned long timeout) { _seek_timeout = timeout; }
+	// how long to call Read() before giving up 
+	void SetBlockingTimeout(unsigned long timeout) { _blocking_timeout = timeout; }
+	// how long to wait for the fan to startup after calling Wake() 
+	void SetStartupDelay(unsigned long startup_delay) { _startup_delay = startup_delay; }
+
 	// read the serial buffer for the AQI data and store in data 
 	void Read(Data &data); 
-	// wraps Read in case of failures 
-	size_t BlockingRead(Data &data, unsigned long timeout=5000); 
-	// runs multiple blocking reads to get an average 
-	void AveragedRead(Data &data, unsigned long avg_time=5000, unsigned long timeout=5000); 
-	// wraps BlockingRead to include waking, waiting for fan to start, and sleeping the sensor
-	size_t ForcedRead(Data &data, unsigned long startup_delay=30000, unsigned long timeout=5000); 
+	// wraps Read in case of failures. returns number of calls to Read
+	size_t BlockingRead(Data &data); 
+	// wakes sensor if necessary, calls BlockingRead, and returns to sleep if it was asleep at beginnging of call 
+	// returns number of calls to Read 
+	size_t ForcedRead(Data &data); 
+	// wakes sensor if necessary, reads for avg_time, averages the data, and sleeps if it was asleep before 
+	// returns maximum number of calls to Read in the avg_time time period 
+	size_t AveragedRead(Data &data, unsigned long avg_time=10000); 
+
 	// tell PMS5003 to sleep (lower power state) 
 	void Sleep(); 
 	// tell PMS5003 to wake from sleep 
@@ -75,13 +85,24 @@ private:
 		uint16_t unused; // blank 
 		uint16_t checksum; // bitwise sum to check against 
 	}; 
+	// convert from SensorOutput struct to Data struct 
 	void ExtractData(const SensorOutput &idata, Data &data); 
-	SensorOutput _idata; 
+
+	// set all values of Data struct to zero 
+	void ZeroDataStructure(Data &data); 
+	// do d1 += d2 on numeric values only. carry mask and valid forward 
+	void AddDataStructures(Data &d1, Data &d2); 
+	// divide by an integer 
+	void DivideDataStructure(Data &data, unsigned long N); 
+
+	SensorOutput _idata; // temporary storage for reading the sensor 
 	Stream &_serial; // PMS5003 serial 
 	byte _buf[32]; // store a PMS5003 32 byte message 
 	uint16_t _buf16[15]; // store the data converted to half precision ints (without the first two bytes)
 	byte _mode = ACTIVE; // active v passive mode 
 	byte _status = WOKE; // operating status
 	unsigned long _seek_timeout = 2000; // how long to seek for the 0x42 start byte 
+	unsigned long _blocking_timeout = 10000; 
 	bool _drain = true; // control whether to drain the serial buffer before taking a measurement 
+	unsigned long _startup_delay = 30000; 
 }; 
