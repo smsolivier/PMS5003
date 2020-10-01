@@ -15,7 +15,7 @@ void PMS5003::Read(Data &data) {
 	}
 
 	// read 32 bytes 
-	size_t len = _serial.readBytes(_buf, 32); 
+	size_t len = _serial.readBytes(_buf, sizeof(_idata)); 
 	if (_buf[0] == 0x42) data.mask |= HAVE_START1; 
 	if (_buf[1] == 0x4d) data.mask |= HAVE_START2; 
 	if (len == 32) data.mask |= HAVE_LENGTH; 
@@ -28,22 +28,21 @@ void PMS5003::Read(Data &data) {
 	}
 
 	// copy to first 30 bytes of data structure 
-	memcpy(&data, _buf16, 30); 
+	memcpy(&_idata, _buf16, 30); 
 
 	// compute checksum 
 	uint16_t sum = 0; 
 	for (int i=0; i<30; i++) {
 	  sum += _buf[i];     
 	}
-	if (data.checksum == sum) data.mask |= HAVE_CHECKSUM; 
-	if (data.mask == 15) data.valid = true; // 15 => HAVE_START1, HAVE_START2, HAVE_LENGTH, HAVE_CHECKSUM 
-	else data.valid = false; // not(15) => some error occurred 
+	if (_idata.checksum == sum) data.mask |= HAVE_CHECKSUM; 
+
+	ExtractData(_idata, data); 
 }
 
 size_t PMS5003::BlockingRead(Data &data, unsigned long timeout) {
 	// do nothing if asleep 
 	if (_status == ASLEEP) {
-		data.valid = false; 
 		data.mask = SENSOR_ASLEEP_ERR; 
 		return 0; 
 	}
@@ -55,13 +54,25 @@ size_t PMS5003::BlockingRead(Data &data, unsigned long timeout) {
 	while (millis() - prev < timeout) { // loop for at most timeout milliseconds 
 		Read(data); // attempt a read 
 		tries++; 
-		if (data.valid) break; // exit if valid data 
+		if (data.mask & HAVE_VALID) break; // exit if valid data 
 	}
 	if (tries==0) {
-		data.valid = false; 
 		data.mask = SENSOR_TIMEOUT_ERR; 
 	}
 	return tries; 
+}
+
+void PMS5003::AveragedRead(Data &data, unsigned long avg_time, unsigned long timeout) {
+	if (_status == ASLEEP) {
+		data.mask = SENSOR_ASLEEP_ERR; 
+		return; 
+	}
+	if (_mode == PASSIVE and _status != REQUESTING) RequestData(); 
+
+	unsigned long prev = millis(); 
+	while (millis() - prev < avg_time) {
+		BlockingRead(data, timeout); 
+	}
 }
 
 size_t PMS5003::ForcedRead(Data &data, unsigned long startup_delay, unsigned long timeout) {
@@ -104,4 +115,8 @@ void PMS5003::RequestData() {
 	uint8_t command[] = { 0x42, 0x4D, 0xE2, 0x00, 0x00, 0x01, 0x71 }; 
 	_serial.write(command, sizeof(command)); 
 	_status = REQUESTING; 
+}
+
+void PMS5003::ExtractData(const SensorOutput &idata, Data &data) {
+	memcpy(&data, ((byte*)&idata) + 2, 24); // skip first 2 bytes and copy 24 bytes 
 }
