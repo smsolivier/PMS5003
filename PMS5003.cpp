@@ -1,47 +1,65 @@
 #include "PMS5003.hpp"
 
+void PMS5003::DrainBuffer() {
+	while (_serial.available()) _serial.read(); 
+}
+
 void PMS5003::Read(Data &data) {
 	// reset mask 
 	data.mask = 0; 
-	
-	// drain buffer 
-	if (_drain) for (int i=0; i<_serial.available(); i++) _serial.read(); 
+	data.valid = false; 
 
-	// search for start character 
+	// temporary stores 
+	byte buf[32]; 
+	uint16_t buf16[15]; 
+	SensorOutput idata; 
+	
+	// wait for at least 32 bytes 
 	unsigned long prev = millis(); 
 	while (millis() - prev < _seek_timeout) {
-		if (_serial.peek() == 0x42) break; 
-		_serial.read(); 
+		if (_serial.available()>=32) {
+			data.mask |= HAVE_AVAILABLE; 
+			break; 
+		}
 	}
+	
+	// exit if timeout reached 
+	if (_serial.available()<32) {
+		return; 
+	} 
 
-	// read 32 bytes 
-	size_t len = _serial.readBytes(_buf, sizeof(_idata)); 
-	if (_buf[0] == 0x42) data.mask |= HAVE_START1; 
-	if (_buf[1] == 0x4d) data.mask |= HAVE_START2; 
-	if (len == 32) data.mask |= HAVE_LENGTH; 
+	// search for start byte 
+	while (millis() - prev < _seek_timeout) {
+		if (_serial.peek() == 0x42) break; 
+		_serial.read(); // consume until start byte found 
+	}
+	size_t len = _serial.readBytes(buf, 32); 
+	if (buf[0] == 0x42) data.mask |= HAVE_START1; 
+	if (buf[1] == 0x4d) data.mask |= HAVE_START2; 
+	if (len==32) data.mask |= HAVE_LENGTH; 
 
 	// convert to single precision 
 	// skip first two bytes 
 	for (int i=0; i<15; i++) {
-		_buf16[i] = _buf[2 + 2*i + 1]; 
-		_buf16[i] += _buf[2 + 2*i] << 8; 
+		buf16[i] = buf[2 + 2*i + 1]; 
+		buf16[i] += buf[2 + 2*i] << 8; 
 	}
 
 	// copy to first 30 bytes of data structure 
-	memcpy(&_idata, _buf16, 30); 
+	memcpy(&idata, buf16, 30); 
 
 	// compute checksum 
 	uint16_t sum = 0; 
 	for (int i=0; i<30; i++) {
-	  sum += _buf[i];     
+	  sum += buf[i];     
 	}
-	if (_idata.checksum == sum) data.mask |= HAVE_CHECKSUM; 
+	if (idata.checksum == sum) data.mask |= HAVE_CHECKSUM; 
 
 	// convert to nicer data structure 
-	ExtractData(_idata, data); 
+	ExtractData(idata, data); 
 
 	// set valid mask if have all the requirements for a good measurement 
-	data.valid = data.mask & HAVE_VALID; 
+	data.valid = data.mask == HAVE_VALID; 
 }
 
 size_t PMS5003::BlockingRead(Data &data) {
@@ -52,7 +70,8 @@ size_t PMS5003::BlockingRead(Data &data) {
 		return 0; 
 	}
 	// request data if necessary 
-	if (_mode == PASSIVE and _status != REQUESTING) RequestData();
+	// request before every read 
+	if (_mode == PASSIVE) RequestData(); 
 
 	unsigned long prev = millis(); 
 	size_t tries = 0; 
@@ -77,7 +96,7 @@ size_t PMS5003::AveragedRead(Data &data, unsigned long avg_time) {
 	if (_status == ASLEEP) Wake(); // wake and wait if asleep 
 
 	size_t max_tries = 0; 
-	size_t N = 0; // number of calls to read 
+	size_t N = 0; // number of calls read 
 	Data tmp_data; 
 	ZeroDataStructure(data); 
 	unsigned long prev = millis(); 
@@ -105,6 +124,7 @@ void PMS5003::Wake() {
 	_serial.write(command, sizeof(command)); 
 	_status = WOKE; 
 	delay(_startup_delay); 
+	if (_drain) DrainBuffer(); 
 }
 
 void PMS5003::SetPassive() {

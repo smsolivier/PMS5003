@@ -14,22 +14,23 @@ class PMS5003 {
 public:
 	// constructor: provide a Stream that has RX and TX from PMS5003 
 	PMS5003(Stream &stream) : _serial(stream) { }
-	// data structure holding numeric output from sensor 
+	// data structure holding numeric output from sensor. 26 bytes total 
 	struct Data {
 		uint16_t pm_st[3]; // "standard" particulate matter in micro grams / liter for 1.0, 2.5, and 10 micron diameters 
 		uint16_t pm_en[3]; // "environmental" particular matter in micro grams / liter for 1.0, 2.5, and 10 micron diameters
 		uint16_t hist[6]; // number of particles detected in 0.1 L beyond 0.3 um, 0.5 um, 1.0 um, 2.5 um, 5.0 um, and 10 um 
 		byte mask = 0; // stores info corresonding to ValidMasks (useful for debugging which part of the message was wrong) 
-		bool valid = false; 
+		bool valid = false; // data is trustworthy 
 	}; 
 	// bitwise comparison enum 
 	// used to create a error code for Data::mask 
 	enum ValidMasks {
-		HAVE_START1 = 1, // message's first byte is 0x42 
-		HAVE_START2 = 2, // message's second byte is 0x4d 
-		HAVE_LENGTH = 4, // message is 32 bytes 
-		HAVE_CHECKSUM = 8, // message passes the checksum test 
-		HAVE_VALID = 15, // message has correct starting bytes, length, and checksum passed 
+		HAVE_AVAILABLE = 1, // serial has 32 bytes available 
+		HAVE_START1 = 2, // message's first byte is 0x42 
+		HAVE_START2 = 4, // message's second byte is 0x4d 
+		HAVE_LENGTH = 8, // message is 32 bytes long 
+		HAVE_CHECKSUM = 16, // message passes the checksum test 
+		HAVE_VALID = 31 // message has correct starting bytes, length, and checksum passed 
 	}; 
 	enum OperatingMode {
 		ACTIVE, // PMS5003 continuously streams data 
@@ -40,15 +41,17 @@ public:
 		WOKE, // PMS5003 is active but not sending data if in passive mode 
 		REQUESTING // PMS5003 is active and sending data (if in passive mode) 
 	}; 
-	// turn on/off draining the serial buffer before taking a measurement 
-	// improves reliability when not taking measurements continuously 
-	void SetDrainBuffer(bool drain=true) { _drain = drain; }
+	// drain serial buffer after call to Wake() 
+	void SetDrainBuffer(bool drain) { _drain = drain; }
 	// how long to search for the start character 
 	void SetSeekTimeout(unsigned long timeout) { _seek_timeout = timeout; }
 	// how long to call Read() before giving up 
 	void SetBlockingTimeout(unsigned long timeout) { _blocking_timeout = timeout; }
 	// how long to wait for the fan to startup after calling Wake() 
 	void SetStartupDelay(unsigned long startup_delay) { _startup_delay = startup_delay; }
+
+	// drain the serial input buffer 
+	void DrainBuffer(); 
 
 	// read the serial buffer for the AQI data and store in data 
 	void Read(Data &data); 
@@ -95,14 +98,11 @@ private:
 	// divide by an integer 
 	void DivideDataStructure(Data &data, unsigned long N); 
 
-	SensorOutput _idata; // temporary storage for reading the sensor 
 	Stream &_serial; // PMS5003 serial 
-	byte _buf[32]; // store a PMS5003 32 byte message 
-	uint16_t _buf16[15]; // store the data converted to half precision ints (without the first two bytes)
 	byte _mode = ACTIVE; // active v passive mode 
 	byte _status = WOKE; // operating status
 	unsigned long _seek_timeout = 2000; // how long to seek for the 0x42 start byte 
 	unsigned long _blocking_timeout = 10000; 
-	bool _drain = true; // control whether to drain the serial buffer before taking a measurement 
-	unsigned long _startup_delay = 30000; 
+	bool _drain = true; // control whether to drain the serial buffer after Wake() 
+	unsigned long _startup_delay = 30000; // how long to delay after calling Wake() 
 }; 
