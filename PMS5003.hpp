@@ -39,7 +39,6 @@ public:
 	enum Status {
 		ASLEEP, // PMS5003 is asleep 
 		WOKE, // PMS5003 is active but not sending data if in passive mode 
-		REQUESTING // PMS5003 is active and sending data (if in passive mode) 
 	}; 
 	// drain serial buffer after call to Wake() 
 	void SetDrainBuffer(bool drain) { _drain = drain; }
@@ -52,6 +51,9 @@ public:
 
 	// drain the serial input buffer 
 	void DrainBuffer(); 
+
+	bool IsAwake() { return _status == WOKE; }
+	bool IsAsleep() { return _status == ASLEEP; }
 
 	// read the serial buffer for the AQI data and store in data 
 	void Read(Data &data); 

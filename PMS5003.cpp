@@ -142,7 +142,6 @@ void PMS5003::SetActive() {
 void PMS5003::RequestData() {
 	uint8_t command[] = { 0x42, 0x4D, 0xE2, 0x00, 0x00, 0x01, 0x71 }; 
 	_serial.write(command, sizeof(command)); 
-	_status = REQUESTING; 
 }
 
 void PMS5003::ExtractData(const SensorOutput &idata, Data &data) {
