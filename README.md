@@ -45,7 +45,8 @@ void loop() {
   // tries holds the number of read attempts. 
   // data.valid == true means the data was correctly read 
   // data.mask holds debugging info and will indicate where the read failed
-  // data.mask == 15 indicates 
+  // data.mask == 31 indicates 
+    // the serial data was available
     // the first byte of the message is 0x42 (the PMS5003 start of message byte)
     // the second byte of the message matches the PMS5003's second indicating byte 
     // the message is 32 bytes as expected 
